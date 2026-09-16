@@ -111,6 +111,7 @@ func muxLedger() *http.ServeMux {
 		dir = v
 	}
 	path = dir + "/ledger.json"
+	auth := NewOperatorAuth(os.Getenv("VOSS_OPERATOR_TOKEN"))
 
 	if data, err := os.ReadFile(path); err == nil {
 		var entries []LedgerEntry
@@ -131,6 +132,7 @@ func muxLedger() *http.ServeMux {
 		json.NewEncoder(w).Encode(map[string]interface{}{"valid": ok, "chain_breaks": breaks})
 	})
 	mux.HandleFunc("/append", func(w http.ResponseWriter, r *http.Request) {
+		if !auth.Authorized(r.Header.Get("Authorization")) { http.Error(w, "operator authorization required", http.StatusUnauthorized); return }
 		en := decodeJSONBody[LedgerEntry](w, r)
 		if en == nil {
 			return
@@ -166,8 +168,9 @@ func muxRouter(cfg *Config) *http.ServeMux {
 
 	tenants, lattice := cfg.Build()
 	router := NewRouter(tenants, lattice)
-	router.RegisterProvider("project-infinity", NewProjectInfinityAdapter(os.Getenv("VOSS_INFERENCE_URL")))
-	router.RegisterProvider("fake", NewProjectInfinityAdapter(os.Getenv("VOSS_INFERENCE_URL")))
+	if os.Getenv("VOSS_ENABLE_PROJECT_INFINITY") == "true" {
+		router.RegisterProvider("project-infinity", NewProjectInfinityAdapter(os.Getenv("VOSS_INFERENCE_URL")))
+	}
 
 	opToken := os.Getenv("VOSS_OPERATOR_TOKEN")
 	if opToken == "" {

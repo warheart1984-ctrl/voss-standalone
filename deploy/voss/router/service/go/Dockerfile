@@ -6,7 +6,8 @@ COPY . .
 RUN go test ./...
 RUN CGO_ENABLED=0 go build -o router .
 
-FROM alpine:latest
+FROM alpine:3.20
+RUN apk add --no-cache wget
 WORKDIR /app
 COPY --from=build /app/router .
 EXPOSE 8080

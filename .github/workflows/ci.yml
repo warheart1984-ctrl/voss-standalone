@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate compose config
-        run: docker compose config
+        run: VOSS_OPERATOR_TOKEN=ci-validation-token docker compose config
         working-directory: deploy/voss
       - name: Validate JSON configs
         run: |
@@ -40,9 +40,8 @@ jobs:
           python -c "import json; json.load(open('deploy/voss/config/grafana/dashboards/auditability-traces.json'))"
           python -c "import json; json.load(open('deploy/voss/config/grafana/dashboards/usl-gate-decisions.json'))"
       - name: Validate Prometheus config
-        if: always()
         run: |
           docker run --rm -v "$(pwd)/deploy/voss/config:/etc/prometheus" prom/prometheus:latest \
             --config.file=/etc/prometheus/prometheus.yml \
             --log.level=error \
-            check-config || true
+            check-config

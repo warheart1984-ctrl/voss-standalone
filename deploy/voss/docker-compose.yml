@@ -10,6 +10,7 @@ services:
       - VOSS_CONFIG=/config/tenants.production.json
       - VOSS_ADDR=:8080
       - VOSS_OPERATOR_TOKEN=${VOSS_OPERATOR_TOKEN:?set VOSS_OPERATOR_TOKEN in .env}
+      - VOSS_ENABLE_PROJECT_INFINITY=${VOSS_ENABLE_PROJECT_INFINITY:-false}
       - VOSS_INFERENCE_URL=${VOSS_INFERENCE_URL:-http://infinity:8000}
     volumes:
       - ./config/tenants.production.json:/config/tenants.production.json:ro
@@ -72,6 +73,7 @@ services:
       - VOSS_MODE=ledger
       - VOSS_ADDR=:8080
       - VOSS_LEDGER_DIR=/data
+      - VOSS_OPERATOR_TOKEN=${VOSS_OPERATOR_TOKEN:?set VOSS_OPERATOR_TOKEN in .env}
     volumes:
       - ./data/ledger:/data
     healthcheck:
