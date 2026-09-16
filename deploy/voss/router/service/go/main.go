@@ -19,11 +19,18 @@ func main() {
 
 	// Wire providers explicitly. No default provider enabled.
 	router.RegisterProvider("project-infinity", NewProjectInfinityAdapter("http://infinity:8000"))
-	server := NewServer(router)
+
+	opToken := os.Getenv("VOSS_OPERATOR_TOKEN")
+	if opToken == "" {
+		log.Println("WARN: VOSS_OPERATOR_TOKEN unset; operator APIs (interrupt/correct/terminate) fail closed")
+	}
+	server := NewServer(router).WithAuth(opToken)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/route", server.RouteHandler)
 	mux.HandleFunc("/interrupt", server.InterruptHandler)
+	mux.HandleFunc("/correct", server.CorrectHandler)
+	mux.HandleFunc("/terminate", server.TerminateHandler)
 	mux.HandleFunc("/ledger", server.LedgerHandler)
 	mux.HandleFunc("/verify", server.VerifyHandler)
 	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))

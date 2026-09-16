@@ -17,7 +17,7 @@ func integrationRouter(t *testing.T) *Server {
 	tenants, lattice := cfg.Build()
 	r := NewRouter(tenants, lattice)
 	r.RegisterProvider("project-infinity", NewProjectInfinityAdapter("http://infinity:8000"))
-	return NewServer(r)
+	return NewServer(r).WithAuth("test-operator-token")
 }
 
 func postJSON(t *testing.T, s *Server, path, body string) (int, map[string]interface{}) {
@@ -25,9 +25,16 @@ func postJSON(t *testing.T, s *Server, path, body string) (int, map[string]inter
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
+	if path == "/interrupt" || path == "/correct" || path == "/terminate" {
+		req.Header.Set("Authorization", "Bearer test-operator-token")
+	}
 	switch path {
 	case "/interrupt":
 		s.InterruptHandler(rr, req)
+	case "/correct":
+		s.CorrectHandler(rr, req)
+	case "/terminate":
+		s.TerminateHandler(rr, req)
 	default:
 		s.RouteHandler(rr, req)
 	}

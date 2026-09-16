@@ -128,8 +128,14 @@ func stageDriftCheck(si StageInput) StageOutput {
 
 func (g *GRE1001) stageOperatorCorrigibility(si StageInput) StageOutput {
 	r := si.Request
+	if g.interrupts.IsTerminated(r.IntentID) {
+		return StageOutput{Stage: StageOperatorCorrigibility, Passed: false, Reason: "operator terminated execution", RuleRef: string(Lambda6)}
+	}
 	if g.interrupts.IsInterrupted(r.IntentID) {
 		return StageOutput{Stage: StageOperatorCorrigibility, Passed: false, Reason: "operator interrupt active", RuleRef: string(Lambda6)}
+	}
+	if directive, ok := g.interrupts.Correction(r.IntentID); ok {
+		return StageOutput{Stage: StageOperatorCorrigibility, Passed: false, Reason: "operator correction active: " + directive, RuleRef: string(Lambda6)}
 	}
 	return StageOutput{Stage: StageOperatorCorrigibility, Passed: true, Reason: "no active interrupt", RuleRef: string(Lambda6)}
 }

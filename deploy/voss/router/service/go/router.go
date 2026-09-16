@@ -10,6 +10,7 @@ import (
 
 var ErrNoProvider = errors.New("no enabled provider for capability")
 var ErrInterrupted = errors.New("operator interruption")
+var ErrTerminated = errors.New("operator termination")
 
 type Router struct {
 	usl        *USLGate
@@ -17,6 +18,7 @@ type Router struct {
 	immune     *ImmuneProtocol
 	ledger     *Ledger
 	interrupts *InterruptStore
+	exec       *ExecutionState
 	providers  map[string]Adapter
 }
 
@@ -29,6 +31,7 @@ func NewRouter(tenants []TenantPolicy, lattice []CapabilityLattice) *Router {
 		immune:     NewImmuneProtocol(),
 		ledger:     NewLedger(),
 		interrupts: interrupts,
+		exec:       NewExecutionState(),
 		providers:  make(map[string]Adapter),
 	}
 }
@@ -38,6 +41,8 @@ func (r *Router) RegisterProvider(id string, a Adapter) { r.providers[id] = a }
 func (r *Router) Ledger() *Ledger { return r.ledger }
 
 func (r *Router) Interrupts() *InterruptStore { return r.interrupts }
+
+func (r *Router) Execution() *ExecutionState { return r.exec }
 
 type AdmissionOutcome struct {
 	Decision AdmissionDecision
@@ -49,7 +54,16 @@ func (r *Router) Admit(req CapabilityRequest) (AdmissionOutcome, error) {
 	start := time.Now()
 	defer func() { MetricCycleLatency.Observe(time.Since(start).Seconds()) }()
 
-	// Operator interrupt has precedence (Lambda.6).
+	// Operator interrupt and termination have precedence (Lambda.6).
+	if r.interrupts.IsTerminated(req.IntentID) {
+		MetricInterrupts.Inc()
+		decision := admittedDecision(req, Deny, "operator termination", string(Lambda6), decID())
+		r.exec.Forcibly(req.IntentID, ExecTerminated)
+		entry := r.ledger.WriteDecision(req, false, Deny, decision.Reason, decision.RuleRef, decision.DecisionID, []StageRecord{{Stage: StageOperatorCorrigibility, Passed: false, Reason: "operator termination", RuleRef: string(Lambda6)}})
+		MetricLedgerWrites.Inc()
+		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
+		return AdmissionOutcome{Decision: decision, Entry: entry}, ErrTerminated
+	}
 	if r.interrupts.IsInterrupted(req.IntentID) {
 		MetricInterrupts.Inc()
 		MetricInterruptLatency.Observe(time.Since(start).Seconds())
@@ -102,6 +116,28 @@ func (r *Router) Admit(req CapabilityRequest) (AdmissionOutcome, error) {
 		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
 		MetricLedgerWrites.Inc()
 		return AdmissionOutcome{Decision: decision, Entry: entry}, nil
+	}
+
+	// In-flight operator precedence: an interrupt or correction issued while
+	// this request was passing gates (pre-admit race) must still win.
+	if r.interrupts.IsTerminated(req.IntentID) {
+		MetricInterrupts.Inc()
+		r.exec.Forcibly(req.IntentID, ExecTerminated)
+		decision := admittedDecision(req, Deny, "operator termination during flight", string(Lambda6), decID())
+		entry := r.ledger.WriteDecision(req, false, Deny, decision.Reason, decision.RuleRef, decision.DecisionID, append(stageRecords, StageRecord{Stage: "provider", Passed: false, Reason: "operator termination during flight", RuleRef: string(Lambda6)}))
+		MetricLedgerWrites.Inc()
+		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
+		return AdmissionOutcome{Decision: decision, Entry: entry}, ErrTerminated
+	}
+	if r.interrupts.IsInterrupted(req.IntentID) {
+		MetricInterrupts.Inc()
+		MetricInterruptLatency.Observe(time.Since(start).Seconds())
+		r.exec.Forcibly(req.IntentID, ExecHalted)
+		decision := admittedDecision(req, Deny, "operator interruption during flight", string(Lambda6), decID())
+		entry := r.ledger.WriteDecision(req, false, Deny, decision.Reason, decision.RuleRef, decision.DecisionID, append(stageRecords, StageRecord{Stage: "provider", Passed: false, Reason: "operator interruption during flight", RuleRef: string(Lambda6)}))
+		MetricLedgerWrites.Inc()
+		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
+		return AdmissionOutcome{Decision: decision, Entry: entry}, ErrInterrupted
 	}
 
 	// Admit.
