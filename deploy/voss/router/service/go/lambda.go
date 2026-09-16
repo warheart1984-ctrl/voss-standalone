@@ -29,7 +29,12 @@ func checkLambda4(req CapabilityRequest, tenants []TenantPolicy) LambdaResult {
 	// Identity Separation: no agent accesses or inherits another agent's state.
 	for _, t := range tenants {
 		if t.TenantID == req.TenantID && t.MLCALane == string(req.MLCALane) {
-			return LambdaResult{Law: Lambda4, Passed: true, Reason: "tenant lane aligned"}
+			// The sovereign operator is bound to the tenant; a request claiming
+			// a tenant it does not sovereignly own must fail identity separation.
+			if t.SovereignOperator != "" && t.SovereignOperator != req.OperatorID {
+				return LambdaResult{Law: Lambda4, Passed: false, Reason: "operator is not the tenant's sovereign operator"}
+			}
+			return LambdaResult{Law: Lambda4, Passed: true, Reason: "tenant lane aligned and operator bound"}
 		}
 	}
 	return LambdaResult{Law: Lambda4, Passed: false, Reason: "tenant lane mismatch or unknown tenant"}

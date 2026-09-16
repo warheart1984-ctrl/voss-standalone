@@ -58,6 +58,16 @@ interrupted/terminated, is denied before any provider contact. Coherence
 Projection is read-only, size-bounded, and rejects `authority` classification
 (evidence only).
 
+## Evidence and resilience (Phase 6)
+Conformance tests pin every Lambda law to a GRE-1001 stage (auditability trace
+matrix). Chaos tests verify fail-closed behavior for provider timeout, drift
+spike, ledger break, malformed input, USL outage, and operator interrupt.
+Multi-tenant isolation and lane-boundary tests enforce identity separation.
+Workflow manifests are digest-pinned in `deploy/voss/workflow/manifest-digests.sha256`
+(CI fails on any unapproved contract drift).
+Runbooks: `docs/runbooks/` (fail-closed, drift-surfacing, ledger-recovery,
+operator-sovereignty).
+
 ## Governance
 Voss Binding Λ.1-Λ.7 enforced via GRE-1001 nine-stage pipeline, USL Gate, Immune Protocol, and unconditional corrigibility.
 Ledger is cryptographically chained and continuity-hooked.

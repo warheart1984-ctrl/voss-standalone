@@ -1,0 +1,8 @@
+# Voss workflow manifest digest manifest (SHA-256)
+# Recompute with: Get-FileHash -Algorithm SHA256 deploy/voss/workflow/*.yaml
+# Any change to a workflow contract must update this manifest. The trust-bundle
+# parity test fails CI when digests drift.
+218e1765773b9da1cef1042956cf816fe1e08e1897500bc2d939e8ceac9a9c84  external_suggestion_admission.yaml
+2535ae7a13c18c5bb9d0f192e816248ff6ff175928ee05f63e434ef38ccd604d  governed_intake.yaml
+c712a4856c110a2e40afb0130f42c909bce442b56ba4fe76e36c2242e2828e2e  governed_training_eval.yaml
+d78c912124e97eeb4e0e85d4dfd3889d546de0fa474fc5ba17a143e3d63ab4d6  otem_execution.yaml

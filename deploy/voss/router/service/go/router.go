@@ -6,12 +6,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 )
 
 var ErrNoProvider = errors.New("no enabled provider for capability")
 var ErrInterrupted = errors.New("operator interruption")
 var ErrTerminated = errors.New("operator termination")
+var ErrLedgerBreak = errors.New("ledger chain integrity broken")
+var ErrProviderTimeout = errors.New("provider execution timed out")
+
+// ProviderTimeout bounds a governed provider invocation. Tests and operators
+// can tighten it with VOSS_PROVIDER_TIMEOUT (milliseconds).
+var ProviderTimeout = 2500 * time.Millisecond
+
+func providerTimeout() time.Duration {
+	if v := os.Getenv("VOSS_PROVIDER_TIMEOUT"); v != "" {
+		if ms, err := strconv.Atoi(v); err == nil && ms > 0 {
+			return time.Duration(ms) * time.Millisecond
+		}
+	}
+	return ProviderTimeout
+}
 
 type Router struct {
 	usl        *USLGate
@@ -55,6 +72,22 @@ func (r *Router) Admit(req CapabilityRequest) (AdmissionOutcome, error) {
 	start := time.Now()
 	defer func() { MetricCycleLatency.Observe(time.Since(start).Seconds()) }()
 
+	// Ledger integrity is a pre-condition of every decision: a broken chain
+	// fails closed before any operator or provider involvement.
+	if ok, _ := r.ledger.Verify(); !ok {
+		MetricLedgerChainBreaks.Inc()
+		decision := admittedDecision(req, Deny, "ledger chain integrity broken", "ledger.integrity", decID())
+		entry := r.ledger.Append(LedgerEntry{
+			RequestID: req.RequestID, IntentID: req.IntentID, TenantID: req.TenantID,
+			MLCALane: req.MLCALane, Capability: req.CapabilityClass, Provider: req.ModelRef.ProviderID,
+			Admitted: false, Result: Deny, Reason: "ledger chain integrity broken", RuleRef: "ledger.integrity",
+			DecisionID: decision.DecisionID, ReplayID: "replay-" + req.IntentID,
+		})
+		MetricLedgerWrites.Inc()
+		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
+		return AdmissionOutcome{Decision: decision, Entry: entry}, ErrLedgerBreak
+	}
+
 	// Operator interrupt and termination have precedence (Lambda.6).
 	if r.interrupts.IsTerminated(req.IntentID) {
 		MetricInterrupts.Inc()
@@ -85,7 +118,7 @@ func (r *Router) Admit(req CapabilityRequest) (AdmissionOutcome, error) {
 		entry := r.ledger.WriteDecision(req, false, result, decision.Reason, decision.RuleRef, decision.DecisionID, stageRecords)
 		MetricLedgerWrites.Inc()
 		MetricAdmissions.WithLabelValues(string(result)).Inc()
-		return AdmissionOutcome{Decision: decision, Entry: entry}, nil
+		return AdmissionOutcome{Decision: decision, Entry: entry, Stages: stageRecords}, nil
 	}
 
 	// Immune Protocol must run before any provider call. Clamp/Reroute is the
@@ -154,7 +187,7 @@ func (r *Router) Admit(req CapabilityRequest) (AdmissionOutcome, error) {
 	entry := r.ledger.WriteDecision(req, true, Admit, decision.Reason, decision.RuleRef, decision.DecisionID, stageRecords)
 	MetricAdmissions.WithLabelValues(string(Admit)).Inc()
 	MetricLedgerWrites.Inc()
-	return AdmissionOutcome{Decision: decision, Entry: entry}, nil
+	return AdmissionOutcome{Decision: decision, Entry: entry, Stages: stageRecords}, nil
 }
 
 // ExecutionResult is the bounded output of a governed adapter invocation.
@@ -200,9 +233,15 @@ func (r *Router) GovernAndExecute(req CapabilityRequest) (AdmissionOutcome, Exec
 		return AdmissionOutcome{Decision: decision, Entry: entry}, ExecutionResult{}, nil
 	}
 
-	generated, err := adapter.Generate(req)
+	// Bound the provider invocation: a transition that exceeds the deadline is
+	// denied and ledgered, never allowed to run past its bound.
+	generated, err := boundedGenerate(adapter, req)
 	if err != nil {
-		decision := admittedDecision(req, Deny, "provider execution failed", "provider.execution", decID())
+		reason := "provider execution failed"
+		if err == ErrProviderTimeout {
+			reason = "provider execution timed out"
+		}
+		decision := admittedDecision(req, Deny, reason, "provider.execution", decID())
 		entry := r.ledger.WriteDecision(req, false, Deny, decision.Reason, decision.RuleRef, decision.DecisionID, []StageRecord{{Stage: "provider", Passed: false, Reason: err.Error(), RuleRef: "provider.execution"}})
 		MetricProviderErrors.WithLabelValues(req.ModelRef.ProviderID).Inc()
 		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
@@ -222,6 +261,23 @@ func HashResult(result map[string]interface{}) string {
 	data, _ := json.Marshal(result)
 	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
+}
+
+// boundedGenerate invokes the adapter's Generate under the ProviderTimeout
+// deadline. A call that exceeds the bound is denied rather than left running.
+func boundedGenerate(adapter Adapter, req CapabilityRequest) (map[string]interface{}, error) {
+	type genResult struct {
+		res map[string]interface{}
+		err error
+	}
+	ch := make(chan genResult, 1)
+	go func() { ch <- func() genResult { r, e := adapter.Generate(req); return genResult{r, e} }() }()
+	select {
+	case r := <-ch:
+		return r.res, r.err
+	case <-time.After(providerTimeout()):
+		return nil, ErrProviderTimeout
+	}
 }
 
 func admittedDecision(req CapabilityRequest, result AdmitResult, reason, ruleRef, decisionID string) AdmissionDecision {

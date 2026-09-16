@@ -33,10 +33,15 @@ type StageStep struct {
 }
 
 type GRE1001 struct {
-	Stages     []StageStep
-	usl        *USLGate
-	interrupts *InterruptStore
+	Stages        []StageStep
+	usl           *USLGate
+	interrupts    *InterruptStore
+	driftOverride *float64
 }
+
+// SteerDrift lets operators surface an elevated drift score for Lambda.5.
+// Below the 0.5 threshold it has no effect.
+func (g *GRE1001) SteerDrift(v float64) { g.driftOverride = &v }
 
 func NewGRE1001(usl *USLGate, interrupts *InterruptStore) *GRE1001 {
 	g := &GRE1001{usl: usl, interrupts: interrupts}
@@ -45,7 +50,7 @@ func NewGRE1001(usl *USLGate, interrupts *InterruptStore) *GRE1001 {
 		{Name: StageCapabilityCheck, Check: stageCapabilityCheck},
 		{Name: StageIdentitySeparation, Check: g.stageIdentitySeparation},
 		{Name: StageUSLGate, Check: g.stageUSLGate},
-		{Name: StageDriftCheck, Check: stageDriftCheck},
+		{Name: StageDriftCheck, Check: g.stageDriftCheck},
 		{Name: StageOperatorCorrigibility, Check: g.stageOperatorCorrigibility},
 		{Name: StageAuditTrail, Check: stageAuditTrail},
 		{Name: StageLedgerWrite, Check: stageLedgerWrite},
@@ -116,11 +121,17 @@ func (g *GRE1001) stageUSLGate(si StageInput) StageOutput {
 	return StageOutput{Stage: StageUSLGate, Passed: true, Reason: "admitted", RuleRef: "usl.gate"}
 }
 
-func stageDriftCheck(si StageInput) StageOutput {
+func (g *GRE1001) stageDriftCheck(si StageInput) StageOutput {
 	res := checkLambda5()
 	if !res.Passed {
 		MetricDriftScore.Set(1)
 		return StageOutput{Stage: StageDriftCheck, Passed: false, Reason: res.Reason, RuleRef: string(Lambda5)}
+	}
+	// A steered drift spike above threshold fails closed before any provider
+	// call; drift is surfaced, not propagated.
+	if g.driftOverride != nil && *g.driftOverride >= 0.5 {
+		MetricDriftScore.Set(*g.driftOverride)
+		return StageOutput{Stage: StageDriftCheck, Passed: false, Reason: "drift spike exceeds threshold", RuleRef: string(Lambda5)}
 	}
 	MetricDriftScore.Set(0)
 	return StageOutput{Stage: StageDriftCheck, Passed: true, Reason: "no drift", RuleRef: string(Lambda5)}
