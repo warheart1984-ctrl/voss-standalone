@@ -6,12 +6,22 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - VOSS_MODE=router
       - VOSS_CONFIG=/config/tenants.production.json
       - VOSS_ADDR=:8080
+      - VOSS_OPERATOR_TOKEN=${VOSS_OPERATOR_TOKEN:?set VOSS_OPERATOR_TOKEN in .env}
+      - VOSS_INFERENCE_URL=${VOSS_INFERENCE_URL:-http://infinity:8000}
     volumes:
-      - ./config/tenants.production.json:/config/tenants.production.json
+      - ./config/tenants.production.json:/config/tenants.production.json:ro
+    depends_on:
+      voss-usl-gate:
+        condition: service_healthy
+      voss-gre-1001:
+        condition: service_healthy
+      voss-ledger:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/metrics"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -19,28 +29,71 @@ services:
       - voss-net
 
   voss-usl-gate:
-    image: voss/usl-gate:latest
-    # Phase 5: replace with buildable local service; USL logic lives in the router module today.
+    build:
+      context: ./router/service/go
+      dockerfile: Dockerfile
+    environment:
+      - VOSS_MODE=usl-gate
+      - VOSS_CONFIG=/config/tenants.production.json
+      - VOSS_ADDR=:8080
+    volumes:
+      - ./config/tenants.production.json:/config/tenants.production.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - voss-net
 
   voss-gre-1001:
-    image: voss/gre-1001:latest
-    # Phase 5: replace with buildable local service; GRE-1001 lives in the router module today.
+    build:
+      context: ./router/service/go
+      dockerfile: Dockerfile
+    environment:
+      - VOSS_MODE=gre-1001
+      - VOSS_CONFIG=/config/tenants.production.json
+      - VOSS_ADDR=:8080
+    volumes:
+      - ./config/tenants.production.json:/config/tenants.production.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - voss-net
 
   voss-ledger:
-    image: voss/ledger:latest
-    # Phase 5: replace with buildable local service; ledger lives in the router module today.
+    build:
+      context: ./router/service/go
+      dockerfile: Dockerfile
+    environment:
+      - VOSS_MODE=ledger
+      - VOSS_ADDR=:8080
+      - VOSS_LEDGER_DIR=/data
     volumes:
       - ./data/ledger:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - voss-net
 
   voss-drift-detector:
-    image: voss/drift-detector:latest
-    # Phase 5: replace with buildable local service.
+    build:
+      context: ./router/service/go
+      dockerfile: Dockerfile
+    environment:
+      - VOSS_MODE=drift-detector
+      - VOSS_ADDR=:8080
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - voss-net
 

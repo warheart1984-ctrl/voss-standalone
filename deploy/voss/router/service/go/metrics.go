@@ -74,7 +74,7 @@ func RegisterMetrics(reg prometheus.Registerer) {
 		MetricStageDuration, MetricUSLViolations, MetricDriftScore,
 		MetricHalt, MetricInterrupts, MetricInterruptLatency,
 		MetricLedgerWrites, MetricLedgerChainBreaks, MetricIdentityViolations,
-		MetricImmuneClass, MetricLambdaCheck,
+		MetricImmuneClass, MetricLambdaCheck, MetricExecutions,
 	} {
 		reg.MustRegister(c)
 	}

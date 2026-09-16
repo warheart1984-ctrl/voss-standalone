@@ -12,6 +12,9 @@ deploy/voss/data/ledger/*.cer
 Thumbs.db
 .DS_Store
 
+# Secrets
+deploy/voss/.env
+
 # Editor
 .idea/
 .vscode/
