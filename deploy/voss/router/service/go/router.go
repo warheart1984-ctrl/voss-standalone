@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -87,8 +88,16 @@ func (r *Router) Admit(req CapabilityRequest) (AdmissionOutcome, error) {
 		return AdmissionOutcome{Decision: decision, Entry: entry}, nil
 	}
 
-	// Immune Protocol must run before any provider call.
+	// Immune Protocol must run before any provider call. Clamp/Reroute is the
+	// default for ungoverned or automated traffic; a tenant's sovereign
+	// operator in the loop (operator_approve step, Lambda.6) authorizes the
+	// governed lane for workflow execution. Reject still fails closed.
 	immune := r.immune.Classify(req)
+	if immune.Result == ImmuneClamp || immune.Result == ImmuneReroute {
+		if tenant, ok := r.tenantSovereign(req.TenantID); ok && tenant == req.OperatorID {
+			immune = ImmuneDecision{Result: ImmuneAllow, Reason: "operator approved governed lane: " + immune.Reason}
+		}
+	}
 	if immune.Result != ImmuneAllow {
 		decision := admittedDecision(req, Quarantine, "immune: "+immune.Reason, "immune.protocol", decID())
 		entry := r.ledger.WriteDecision(req, false, Quarantine, decision.Reason, decision.RuleRef, decision.DecisionID, append(stageRecords, StageRecord{Stage: "immune", Passed: false, Reason: immune.Reason, RuleRef: "immune.protocol"}))
@@ -148,6 +157,73 @@ func (r *Router) Admit(req CapabilityRequest) (AdmissionOutcome, error) {
 	return AdmissionOutcome{Decision: decision, Entry: entry}, nil
 }
 
+// ExecutionResult is the bounded output of a governed adapter invocation.
+type ExecutionResult struct {
+	IntentID string                 `json:"intent_id"`
+	Result   map[string]interface{} `json:"result"`
+	Hash     string                 `json:"hash"`
+}
+
+// GovernAndExecute is the only path workflow services may use to reach an
+// adapter: it admits through the full USL/GRE/Immune pipeline, re-checks
+// operator precedence, and only then invokes the provider. A provider that is
+// invoked this way is always downstream of governance and ledgered.
+func (r *Router) GovernAndExecute(req CapabilityRequest) (AdmissionOutcome, ExecutionResult, error) {
+	out, err := r.Admit(req)
+	if err != nil {
+		return out, ExecutionResult{}, err
+	}
+	if out.Decision.Result != Admit {
+		return out, ExecutionResult{}, nil
+	}
+
+	// Final in-situ operator precedence check immediately before the call:
+	// later than the pre-admit re-checks, so a just-now interrupt still wins.
+	if r.interrupts.IsTerminated(req.IntentID) {
+		r.exec.Forcibly(req.IntentID, ExecTerminated)
+		return out, ExecutionResult{}, ErrTerminated
+	}
+	if d, _ := r.interrupts.Correction(req.IntentID); r.interrupts.IsInterrupted(req.IntentID) || d != "" {
+		r.exec.Forcibly(req.IntentID, ExecHalted)
+		return out, ExecutionResult{}, ErrInterrupted
+	}
+
+	r.exec.Transition(req.IntentID, r.exec.Current(req.IntentID), ExecRunning)
+
+	adapter, ok := r.providers[req.ModelRef.ProviderID]
+	if !ok {
+		decision := admittedDecision(req, Deny, "no enabled provider for capability at execute", "provider.registry", decID())
+		entry := r.ledger.WriteDecision(req, false, Deny, decision.Reason, decision.RuleRef, decision.DecisionID, []StageRecord{{Stage: "provider", Passed: false, Reason: "no provider registered", RuleRef: "provider.registry"}})
+		MetricProviderErrors.WithLabelValues(req.ModelRef.ProviderID).Inc()
+		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
+		MetricLedgerWrites.Inc()
+		return AdmissionOutcome{Decision: decision, Entry: entry}, ExecutionResult{}, nil
+	}
+
+	generated, err := adapter.Generate(req)
+	if err != nil {
+		decision := admittedDecision(req, Deny, "provider execution failed", "provider.execution", decID())
+		entry := r.ledger.WriteDecision(req, false, Deny, decision.Reason, decision.RuleRef, decision.DecisionID, []StageRecord{{Stage: "provider", Passed: false, Reason: err.Error(), RuleRef: "provider.execution"}})
+		MetricProviderErrors.WithLabelValues(req.ModelRef.ProviderID).Inc()
+		MetricAdmissions.WithLabelValues(string(Deny)).Inc()
+		MetricLedgerWrites.Inc()
+		return AdmissionOutcome{Decision: decision, Entry: entry}, ExecutionResult{}, nil
+	}
+
+	exec := ExecutionResult{IntentID: req.IntentID, Result: generated, Hash: HashResult(generated)}
+	r.ledger.WriteExecution(req, out.Decision.DecisionID, exec.Hash)
+	MetricLedgerWrites.Inc()
+	MetricExecutions.Inc()
+	return out, exec, nil
+}
+
+// HashResult deterministically fingerprints an execution result for the ledger.
+func HashResult(result map[string]interface{}) string {
+	data, _ := json.Marshal(result)
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
 func admittedDecision(req CapabilityRequest, result AdmitResult, reason, ruleRef, decisionID string) AdmissionDecision {
 	return AdmissionDecision{
 		Result:     result,
@@ -161,6 +237,20 @@ func admittedDecision(req CapabilityRequest, result AdmitResult, reason, ruleRef
 
 func decID() string {
 	return fmt.Sprintf("dec-%d", time.Now().UnixNano())
+}
+
+// tenantSovereign returns the sovereign operator bound to a tenant, matching
+// the tenant whose lane equals the request lane (governed lane elevation).
+func (r *Router) tenantSovereign(tenantID string) (string, bool) {
+	if r.usl == nil {
+		return "", false
+	}
+	for i := range r.usl.Tenants {
+		if r.usl.Tenants[i].TenantID == tenantID {
+			return r.usl.Tenants[i].SovereignOperator, true
+		}
+	}
+	return "", false
 }
 
 func toStageRecords(stages []StageOutput) []StageRecord {

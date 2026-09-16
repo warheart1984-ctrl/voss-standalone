@@ -16,6 +16,10 @@ var (
 		Name: "voss_router_provider_error_total",
 		Help: "Provider errors by provider",
 	}, []string{"provider"})
+	MetricExecutions = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "voss_router_execution_total",
+		Help: "Governed provider executions",
+	})
 	MetricStageDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "voss_gre_stage_duration_seconds",
 		Help:    "GRE-1001 stage duration",

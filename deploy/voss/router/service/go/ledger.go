@@ -53,6 +53,27 @@ func (l *Ledger) WriteDecision(req CapabilityRequest, admitted bool, result Admi
 	return l.Append(e)
 }
 
+// WriteExecution records the result of a governed provider invocation, bound
+// to the admission decision that preceded it.
+func (l *Ledger) WriteExecution(req CapabilityRequest, decisionID, executionHash string) LedgerEntry {
+	e := LedgerEntry{
+		RequestID:     req.RequestID,
+		IntentID:      req.IntentID,
+		TenantID:      req.TenantID,
+		MLCALane:      req.MLCALane,
+		Capability:    req.CapabilityClass,
+		Provider:      req.ModelRef.ProviderID,
+		Admitted:      true,
+		Result:        Admit,
+		Reason:        "executed under governance",
+		RuleRef:       "provider.execution",
+		DecisionID:    decisionID,
+		ExecutionHash: executionHash,
+		ReplayID:      fmt.Sprintf("replay-%s-%d", req.IntentID, time.Now().UnixNano()),
+	}
+	return l.Append(e)
+}
+
 func (l *Ledger) Verify() (bool, int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

@@ -43,6 +43,21 @@ curl -X POST localhost:8080/terminate -H "Authorization: Bearer $VOSS_OPERATOR_T
 Execution state machine: `PENDING -> ADMITTED -> RUNNING`, and `HALTED` / `TERMINATED` are terminal.
 Operator interrupts, corrections, and terminations take precedence at every gate (Λ.6) and are ledgered.
 
+## Governed workflows (Phase 4)
+Four workflows from `deploy/voss/workflow/*.yaml` are implemented in
+`deploy/voss/router/service/go/workflows.go`:
+- `governed-intake` — intake.unstructured, lanes SAFE/NORMAL/EXPRESS
+- `otem-execution` — execution.otem (operator approved, requires sovereign operator in the loop), NORMAL/EXPRESS
+- `external-suggestion-admission` — outside reasoning enters as bounded, evidence-only Coherence Projection
+- `governed-training-eval` — training.eval, SAFE only
+
+Every workflow transition reaches a provider only through `Router.GovernAndExecute`,
+which admits through USL/GRE/Immune and ledger-chains every execution result
+(`execution_hash`). A capability that is not granted, or an intent that is
+interrupted/terminated, is denied before any provider contact. Coherence
+Projection is read-only, size-bounded, and rejects `authority` classification
+(evidence only).
+
 ## Governance
 Voss Binding Λ.1-Λ.7 enforced via GRE-1001 nine-stage pipeline, USL Gate, Immune Protocol, and unconditional corrigibility.
 Ledger is cryptographically chained and continuity-hooked.

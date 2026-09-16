@@ -48,6 +48,7 @@ type CapabilityRequest struct {
 	ModelRef        ModelRef          `json:"model_ref"`
 	Payload         json.RawMessage   `json:"payload,omitempty"`
 	Metadata        map[string]string `json:"metadata,omitempty"`
+	Coherence       *CoherenceProjection `json:"coherence,omitempty"`
 }
 
 type ModelRef struct {
@@ -83,6 +84,7 @@ type LedgerEntry struct {
 	PrevHash   string            `json:"prev_hash"`
 	Hash       string            `json:"hash"`
 	ReplayID   string            `json:"replay_id,omitempty"`
+	ExecutionHash string          `json:"execution_hash,omitempty"`
 }
 
 type StageRecord struct {
