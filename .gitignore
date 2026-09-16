@@ -1,0 +1,17 @@
+# Go build artifacts
+deploy/voss/router/service/go/router
+deploy/voss/router/service/go/router.exe
+deploy/voss/router/service/go/*.test
+*.exe
+
+# Local data
+deploy/voss/data/ledger/*.json
+deploy/voss/data/ledger/*.cer
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.idea/
+.vscode/

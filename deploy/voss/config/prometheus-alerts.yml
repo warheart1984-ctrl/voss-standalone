@@ -10,6 +10,12 @@ groups:
           summary: "Voss Fail-Closed triggered"
           description: "Invariant violation halted execution. Λ.3 Fail-Closed active."
 
+      - alert: VossCycleLatency
+        expr: histogram_quantile(0.95, sum(rate(voss_cycle_latency_seconds_bucket[5m])) by (le)) > 2
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Voss cycle latency above SLO"}
+
       - alert: VossDriftDeviation
         expr: voss_drift_deviation_score > 0.8
         for: 2m

@@ -7,43 +7,31 @@ scrape_configs:
     static_configs:
       - targets: ['voss-runtime:9090']
     metrics_path: /metrics
-    labels:
-      component: runtime
 
   - job_name: 'voss-usl-gate'
     static_configs:
       - targets: ['voss-usl-gate:9090']
     metrics_path: /metrics
-    labels:
-      component: usl_gate
 
   - job_name: 'voss-gre-1001'
     static_configs:
       - targets: ['voss-gre-1001:9090']
     metrics_path: /metrics
-    labels:
-      component: gre_pipeline
 
   - job_name: 'voss-model-router'
     static_configs:
       - targets: ['voss-model-router:9090']
     metrics_path: /metrics
-    labels:
-      component: model_router
 
   - job_name: 'voss-ledger'
     static_configs:
       - targets: ['voss-ledger:9090']
     metrics_path: /metrics
-    labels:
-      component: ledger
 
   - job_name: 'voss-drift-detector'
     static_configs:
       - targets: ['voss-drift-detector:9090']
     metrics_path: /metrics
-    labels:
-      component: drift
 
 rule_files:
   - 'prometheus-alerts.yml'

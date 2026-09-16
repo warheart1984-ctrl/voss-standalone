@@ -1,1 +1,16 @@
-{\" \:\http://json-schema.org/draft-07/schema#\,\title\:\Voss Capability "Request\} 
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Voss Capability Request",
+  "type": "object",
+  "required": ["tenant_id", "intent_id", "operator_id", "mlca_lane", "capability_class", "governance_rule_ref", "model_ref"],
+  "properties": {
+    "tenant_id": {"type": "string", "minLength": 1},
+    "intent_id": {"type": "string", "minLength": 1},
+    "operator_id": {"type": "string", "minLength": 1},
+    "mlca_lane": {"enum": ["SAFE", "NORMAL", "EXPRESS"]},
+    "capability_class": {"type": "string", "minLength": 1},
+    "governance_rule_ref": {"type": "string", "pattern": "^Lambda\\.[1-7]$"},
+    "model_ref": {"type": "object", "required": ["provider_id", "model_id"], "properties": {"provider_id": {"type": "string"}, "model_id": {"type": "string"}, "key_ref": {"type": "string"}}}
+  },
+  "additionalProperties": false
+}

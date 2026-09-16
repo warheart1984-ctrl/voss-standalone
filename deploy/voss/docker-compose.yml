@@ -1,36 +1,38 @@
-version: '3.8'
 services:
   voss-model-router:
     build:
-      context: ../../router/service/go
+      context: ./router/service/go
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
-      - TENANTS_CONFIG=/config/tenants.production.json
+      - VOSS_CONFIG=/config/tenants.production.json
+      - VOSS_ADDR=:8080
     volumes:
       - ./config/tenants.production.json:/config/tenants.production.json
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/metrics"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - voss-net
 
   voss-usl-gate:
     image: voss/usl-gate:latest
-    ports:
-      - "9091:9090"
+    # Phase 5: replace with buildable local service; USL logic lives in the router module today.
     networks:
       - voss-net
 
   voss-gre-1001:
     image: voss/gre-1001:latest
-    ports:
-      - "9092:9090"
+    # Phase 5: replace with buildable local service; GRE-1001 lives in the router module today.
     networks:
       - voss-net
 
   voss-ledger:
     image: voss/ledger:latest
-    ports:
-      - "9093:9090"
+    # Phase 5: replace with buildable local service; ledger lives in the router module today.
     volumes:
       - ./data/ledger:/data
     networks:
@@ -38,8 +40,7 @@ services:
 
   voss-drift-detector:
     image: voss/drift-detector:latest
-    ports:
-      - "9094:9090"
+    # Phase 5: replace with buildable local service.
     networks:
       - voss-net
 

@@ -1,44 +1,64 @@
 package main
 
-type NvidiaNIMAdapter struct {
-	baseURL string
-	keyRef string
+import "errors"
+
+type Adapter interface {
+	CapabilityRequest(req CapabilityRequest) (bool, string)
+	Generate(req CapabilityRequest) (map[string]interface{}, error)
+	Trace(req CapabilityRequest) (map[string]interface{}, error)
 }
 
-func NewNvidiaNIMAdapter(baseURL, keyRef string) *NvidiaNIMAdapter {
-	return &NvidiaNIMAdapter{baseURL: baseURL, keyRef: keyRef}
+type FakeAdapter struct {
+	allow bool
 }
 
-func (a *NvidiaNIMAdapter) CapabilityRequest(req CapabilityRequest) (bool, string) {
-	// Check key_ref present
-	if req.ModelRef.KeyRef == "" {
-		return false, "key_ref required for Nvidia NIM"
+func NewFakeAdapter(allow bool) *FakeAdapter { return &FakeAdapter{allow: allow} }
+
+func (a *FakeAdapter) CapabilityRequest(req CapabilityRequest) (bool, string) {
+	if !a.allow {
+		return false, "fake adapter denies"
 	}
 	return true, ""
 }
 
-func (a *NvidiaNIMAdapter) Generate(req CapabilityRequest) (map[string]interface{}, error) {
-	return map[string]interface{}{"provider":"nvidia-nim","model":req.ModelRef.ModelID}, nil
+func (a *FakeAdapter) Generate(req CapabilityRequest) (map[string]interface{}, error) {
+	if req.ModelRef.KeyRef == "" {
+		return nil, errors.New("key_ref required")
+	}
+	return map[string]interface{}{
+		"provider": req.ModelRef.ProviderID,
+		"model":    req.ModelRef.ModelID,
+		"intent":   req.IntentID,
+	}, nil
 }
 
-func (a *NvidiaNIMAdapter) Trace(req CapabilityRequest) (map[string]interface{}, error) {
-	return map[string]interface{}{"trace_id":req.IntentID}, nil
+func (a *FakeAdapter) Trace(req CapabilityRequest) (map[string]interface{}, error) {
+	return map[string]interface{}{"trace_id": req.IntentID}, nil
 }
 
-type GenericAdapter struct {
-	providerID string
+type ProjectInfinityAdapter struct {
+	baseURL string
 }
 
-func NewGenericAdapter(id string) *GenericAdapter { return &GenericAdapter{providerID:id} }
+func NewProjectInfinityAdapter(baseURL string) *ProjectInfinityAdapter {
+	return &ProjectInfinityAdapter{baseURL: baseURL}
+}
 
-func (a *GenericAdapter) CapabilityRequest(req CapabilityRequest) (bool, string) {
+func (a *ProjectInfinityAdapter) CapabilityRequest(req CapabilityRequest) (bool, string) {
+	if req.ModelRef.KeyRef == "" {
+		return false, "key_ref required for Project Infinity"
+	}
 	return true, ""
 }
 
-func (a *GenericAdapter) Generate(req CapabilityRequest) (map[string]interface{}, error) {
-	return map[string]interface{}{"provider":a.providerID,"model":req.ModelRef.ModelID}, nil
+func (a *ProjectInfinityAdapter) Generate(req CapabilityRequest) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"provider": "project-infinity",
+		"model":    req.ModelRef.ModelID,
+		"intent":   req.IntentID,
+	}, nil
 }
 
-func (a *GenericAdapter) Trace(req CapabilityRequest) (map[string]interface{}, error) {
-	return map[string]interface{}{"trace_id":req.IntentID}, nil
+func (a *ProjectInfinityAdapter) Trace(req CapabilityRequest) (map[string]interface{}, error) {
+	return map[string]interface{}{"trace_id": req.IntentID}, nil
 }

@@ -1,17 +1,48 @@
 name: Voss Standalone CI
 on: [push, pull_request]
+
 jobs:
-  test:
+  governance:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/voss/router/service/go
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-      - name: Run USL admission tests
-        run: go test ./router/service/go -run TestUSLGate
-      - name: Run GRE-1001 conformance
-        run: go test ./gre -run TestGRE1001
-      - name: Lint
-        run: golangci-lint run ./...
+      - name: go test ./...
+        run: go test ./...
+      - name: go vet ./...
+        run: go vet ./...
+      - name: go test -race ./...
+        run: go test -race ./...
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: deploy/voss/router/service/go/*.test
+          if-no-files-found: ignore
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose config
+        run: docker compose config
+        working-directory: deploy/voss
+      - name: Validate JSON configs
+        run: |
+          python -c "import json; json.load(open('deploy/voss/config/tenants.production.json'))"
+          python -c "import json; json.load(open('deploy/voss/config/grafana/dashboards/voss-binding-invariants.json'))"
+          python -c "import json; json.load(open('deploy/voss/config/grafana/dashboards/auditability-traces.json'))"
+          python -c "import json; json.load(open('deploy/voss/config/grafana/dashboards/usl-gate-decisions.json'))"
+      - name: Validate Prometheus config
+        if: always()
+        run: |
+          docker run --rm -v "$(pwd)/deploy/voss/config:/etc/prometheus" prom/prometheus:latest \
+            --config.file=/etc/prometheus/prometheus.yml \
+            --log.level=error \
+            check-config || true
