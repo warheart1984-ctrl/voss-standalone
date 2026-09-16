@@ -1,0 +1,23 @@
+apiVersion: voss.io/v1
+kind: Workflow
+metadata:
+  name: governed-intake
+spec:
+  capability_class: intake.unstructured
+  mlca_lanes: [SAFE,NORMAL,EXPRESS]
+  usl_gate:
+    required: true
+    checks: [Lambda.1, Lambda.2, Lambda.4]
+  steps:
+    - name: receive
+      action: accept_event_bytes
+      audit: true
+    - name: classify
+      action: immune_protocol_classify
+      output: [ALLOW, CLAMP, REROUTE, REJECT, QUARANTINE]
+    - name: ledger
+      action: write_intent
+      fields: [tenant_id, mlca_lane, intent_id, operator_id]
+  governance:
+    fail_closed: true
+    corrigibility: unconditional

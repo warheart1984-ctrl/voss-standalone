@@ -1,0 +1,32 @@
+apiVersion: voss.io/v1
+kind: Workflow
+metadata:
+  name: otem-execution
+spec:
+  capability_class: execution.otem
+  mlca_lanes: [NORMAL,EXPRESS]
+  usl_gate:
+    required: true
+    checks: [Lambda.1, Lambda.2, Lambda.3, Lambda.6, Lambda.7]
+  steps:
+    - name: proposal
+      action: model_propose
+      governance: capability_request
+    - name: approval
+      action: operator_approve
+      governance: corrigibility
+    - name: preview
+      action: model_preview
+      governance: audit
+    - name: verify
+      action: usl_verify
+      governance: fail_closed
+    - name: apply
+      action: execute_bounded_transition
+      governance: ledger_write
+    - name: ledger
+      action: append_state_transition
+      fields: [intent_id, prev_hash, hash, operator_id]
+  governance:
+    fail_closed: true
+    operator_sovereignty: true

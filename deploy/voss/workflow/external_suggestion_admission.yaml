@@ -1,0 +1,24 @@
+apiVersion: voss.io/v1
+kind: Workflow
+metadata:
+  name: external-suggestion-admission
+spec:
+  capability_class: admission.external
+  mlca_lanes: [SAFE,NORMAL]
+  usl_gate:
+    required: true
+    checks: [Lambda.2, Lambda.4, Lambda.7]
+  steps:
+    - name: ingest
+      action: receive_external_reasoning
+      classification: evidence_only
+    - name: sanitize
+      action: strip_authority_claims
+    - name: admit_as_evidence
+      action: attach_to_intent
+      governance: no_authority_transfer
+    - name: ledger
+      action: record_admission
+      fields: [intent_id, source, classification]
+  governance:
+    note: "Outside reasoning enters as evidence, never as authority"

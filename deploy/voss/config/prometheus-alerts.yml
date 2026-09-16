@@ -1,0 +1,65 @@
+groups:
+  - name: voss_binding
+    rules:
+      - alert: VossFailClosed
+        expr: voss_usl_violation_total > 0
+        for: 0m
+        labels:
+          law: Lambda.3
+        annotations:
+          summary: "Voss Fail-Closed triggered"
+          description: "Invariant violation halted execution. Λ.3 Fail-Closed active."
+
+      - alert: VossDriftDeviation
+        expr: voss_drift_deviation_score > 0.8
+        for: 2m
+        labels:
+          law: Lambda.5
+        annotations:
+          summary: "Drift deviation detected"
+          description: "Behavioral deviation from baseline surfaced before propagation."
+
+      - alert: VossLedgerChainBreak
+        expr: voss_ledger_chain_invalid_total > 0
+        for: 0m
+        labels:
+          law: Lambda.2
+        annotations:
+          summary: "Ledger chain integrity broken"
+          description: "Auditability compromised. Ledger write integrity violation."
+
+      - alert: VossCorrigibilityLatency
+        expr: voss_operator_interrupt_latency_seconds > 1
+        for: 1m
+        labels:
+          law: Lambda.6
+        annotations:
+          summary: "Corrigibility latency high"
+          description: "Operator interrupt not honored within SLA."
+
+      - alert: VossIdentitySeparationViolation
+        expr: voss_identity_cross_access_total > 0
+        for: 0m
+        labels:
+          law: Lambda.4
+        annotations:
+          summary: "Identity separation violation"
+          description: "Agent accessed another agent's state."
+
+      - alert: VossUSLAdmissionRejection
+        expr: rate(voss_usl_admission_rejected_total[5m]) > 0
+        for: 1m
+        labels:
+          component: usl_gate
+        annotations:
+          summary: "USL admission rejections increasing"
+          description: "Capability lattice rejecting requests."
+
+      - alert: VossGREStageTiming
+        expr: voss_gre_stage_duration_seconds > 0.5
+        for: 5m
+        labels:
+          component: gre_pipeline
+        annotations:
+          summary: "GRE-1001 stage timing degraded"
+          description: "Pipeline stage exceeding threshold."

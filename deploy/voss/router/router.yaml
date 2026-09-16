@@ -1,0 +1,93 @@
+# Voss Model Router - Provider Agnostic Definition
+# No default provider. Routing is capability-driven and governed by USL Gate.
+# Version: 0.1.0
+
+apiVersion: voss.io/v1
+kind: ModelRouter
+metadata:
+  name: voss-model-router
+  description: Provider-agnostic router for Voss Runtime AI Execution Layer
+
+spec:
+  governance:
+    usl_gate: true
+    voss_binding: ["Λ.1","Λ.2","Λ.3","Λ.4","Λ.5","Λ.6","Λ.7"]
+    ledger_required: true
+    audit_trail: true
+
+  routing:
+    mode: capability_first
+    default_action: reject
+    selection_criteria:
+      - capability_class
+      - tenant_id
+      - mlca_lane
+      - operator_authority
+
+  providers:
+    # Providers are defined but not enabled by default.
+    # Each provider must implement the Voss Model Adapter Interface.
+    # Enablement requires explicit tenant policy and key reference.
+    - name: placeholder
+      type: abstract
+      enabled: false
+      capabilities: []
+      adapter_interface:
+        capability_request: "CapabilityRequest"
+        generate: "Generate"
+        trace: "Trace"
+      auth:
+        type: key_ref
+        key_ref: null
+      endpoints: []
+
+  adapters:
+    # Interface contract all providers must satisfy
+    voss_model_adapter:
+      methods:
+        - name: capability_request
+          input_schema: "voss.schemas.capability_request.json"
+          output_schema: "voss.schemas.capability_admission.json"
+        - name: generate
+          input_schema: "voss.schemas.generate_request.json"
+          output_schema: "voss.schemas.generate_response.json"
+        - name: trace
+          input_schema: "voss.schemas.trace_request.json"
+          output_schema: "voss.schemas.trace_response.json"
+
+  policy:
+    capability_lattice:
+      # Example lattice, to be populated per tenant
+      - class: inference.low_risk
+        allowed_lanes: ["SAFE","NORMAL","EXPRESS"]
+      - class: inference.high_risk
+        allowed_lanes: ["NORMAL","EXPRESS"]
+        requires_operator_approval: true
+      - class: training.eval
+        allowed_lanes: ["SAFE"]
+        requires_operator_approval: true
+
+    mlca_lanes:
+      SAFE:
+        description: Hard isolation, full audit, no cross-tenant state
+      NORMAL:
+        description: Standard isolation
+      EXPRESS:
+        description: Low latency, still governed
+
+    identity_separation: true
+    corrigibility: unconditional
+
+  observability:
+    metrics:
+      - voss_router_decision_duration_seconds
+      - voss_router_admission_total
+      - voss_router_provider_error_total
+    logs: structured_json
+    ledger_write: required
+
+  notes: |
+    No provider is hard-coded. To add a provider, create a provider manifest
+    conforming to voss_model_adapter interface, register key_ref in secrets
+    management, and grant capability via tenants.production.json policy.
+    USL Gate will reject any request without explicit capability admission.

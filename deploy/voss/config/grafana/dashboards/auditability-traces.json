@@ -1,0 +1,9 @@
+﻿{
+  "title": "Auditability Traces",
+  "tags": ["voss","audit"],
+  "panels": [
+    {"title":"Ledger Write Latency","type":"graph","targets":[{"expr":"voss_ledger_write_duration_seconds"}]},
+    {"title":"Ledger Chain Integrity","type":"stat","targets":[{"expr":"voss_ledger_chain_invalid_total"}]},
+    {"title":"Admissions by Tenant","type":"table","targets":[{"expr":"sum by (tenant_id) (voss_router_admission_total)"}]}
+  ]
+}

@@ -1,0 +1,29 @@
+apiVersion: voss.io/v1
+kind: Workflow
+metadata:
+  name: governed-training-eval
+spec:
+  capability_class: training.eval
+  mlca_lanes: [SAFE]
+  usl_gate:
+    required: true
+    checks: [Lambda.1, Lambda.2, Lambda.3, Lambda.5, Lambda.7]
+  steps:
+    - name: plan
+      action: define_training_scope
+      governance: operator_approval_required
+    - name: data_gate
+      action: usl_data_classification
+      output: [ALLOW, REJECT]
+    - name: train
+      action: bounded_training_run
+      governance: capability_lattice_enforced
+    - name: eval
+      action: governed_evaluation
+      governance: audit_trail
+    - name: ledger
+      action: record_training_transition
+      fields: [intent_id, dataset_hash, model_hash, operator_id]
+  governance:
+    training_downstream_of_law: true
+    fail_closed: true

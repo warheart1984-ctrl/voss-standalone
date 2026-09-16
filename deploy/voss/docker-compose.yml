@@ -1,0 +1,68 @@
+version: '3.8'
+services:
+  voss-model-router:
+    build:
+      context: ../../router/service/go
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - TENANTS_CONFIG=/config/tenants.production.json
+    volumes:
+      - ./config/tenants.production.json:/config/tenants.production.json
+    networks:
+      - voss-net
+
+  voss-usl-gate:
+    image: voss/usl-gate:latest
+    ports:
+      - "9091:9090"
+    networks:
+      - voss-net
+
+  voss-gre-1001:
+    image: voss/gre-1001:latest
+    ports:
+      - "9092:9090"
+    networks:
+      - voss-net
+
+  voss-ledger:
+    image: voss/ledger:latest
+    ports:
+      - "9093:9090"
+    volumes:
+      - ./data/ledger:/data
+    networks:
+      - voss-net
+
+  voss-drift-detector:
+    image: voss/drift-detector:latest
+    ports:
+      - "9094:9090"
+    networks:
+      - voss-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml
+    networks:
+      - voss-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - voss-net
+
+networks:
+  voss-net:
+    driver: bridge

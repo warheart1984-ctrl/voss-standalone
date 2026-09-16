@@ -1,0 +1,9 @@
+﻿{
+  "title": "USL Gate Decisions",
+  "tags": ["voss","usl"],
+  "panels": [
+    {"title":"Admission Rate","type":"piechart","targets":[{"expr":"sum by (result) (voss_router_admission_total)"}]},
+    {"title":"Decision Duration","type":"heatmap","targets":[{"expr":"voss_router_decision_duration_seconds_bucket"}]},
+    {"title":"Provider Errors","type":"stat","targets":[{"expr":"sum by (provider) (voss_router_provider_error_total)"}]}
+  ]
+}

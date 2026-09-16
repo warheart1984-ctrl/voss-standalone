@@ -1,0 +1,10 @@
+﻿{
+  "title": "Voss Binding Invariants",
+  "tags": ["voss","governance"],
+  "panels": [
+    {"title":"Î›.3 Fail-Closed Halts","type":"stat","targets":[{"expr":"increase(voss_usl_violation_total[5m])"}]},
+    {"title":"Î›.5 Drift Deviation","type":"gauge","targets":[{"expr":"voss_drift_deviation_score"}]},
+    {"title":"Î›.6 Corrigibility Latency","type":"graph","targets":[{"expr":"voss_operator_interrupt_latency_seconds"}]},
+    {"title":"Î›.4 Identity Separation Violations","type":"stat","targets":[{"expr":"increase(voss_identity_cross_access_total[5m])"}]}
+  ]
+}

@@ -1,0 +1,17 @@
+name: Voss Standalone CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Run USL admission tests
+        run: go test ./router/service/go -run TestUSLGate
+      - name: Run GRE-1001 conformance
+        run: go test ./gre -run TestGRE1001
+      - name: Lint
+        run: golangci-lint run ./...
