@@ -1,0 +1,94 @@
+# Git
+.git
+.gitignore
+.github
+
+# Binaries and executables
+router.exe
+router
+*.bin
+*.out
+
+# Go build and test artifacts
+vendor/
+.cache
+*.o
+*.a
+*.so
+__pycache__/
+
+# Test caches and temporary files
+.pytest_cache/
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Ledger data (should mount at runtime)
+.ledger/
+data/
+ledger/
+*.ledger
+
+# Configuration and secrets (load at runtime via volumes)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+config/*.json
+config/*.yaml
+config/*.yml
+config/*.key
+config/*.pem
+config/*.crt
+
+# Credentials and tokens (NEVER bake into image)
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cert
+credentials/
+secrets/
+.ssh/
+.gnupg/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# CI/CD and build artifacts
+.github/
+.gitignore
+Makefile
+makefile
+
+# Documentation and licenses
+*.md
+docs/
+LICENSE
+CHANGELOG
+
+# Development tools
+go.mod.backup
+go.sum.backup
+*.prof
+pprof/
+
+# Node/npm (if any frontend tooling)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Local overrides
+local/
+override/
+temp/
